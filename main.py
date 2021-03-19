@@ -30,15 +30,23 @@ with open('values.csv') as csv_file:
     cuts = np.empty(1)
     cuts = []
     supplyLength = 0
+    sawBladeWidth = 0
     for row in csv_reader:
         if line_count == 0:
             print(f'Column names are {", ".join(row)}')
             line_count += 1
         else:
-            #cuts = np.append(cuts, row[1])
-            cuts.append(int(row[1]))
+            quantity = 1
+            if row[3]:
+                quantity = int(row[3])
+            for i in range(quantity):
+                cuts.append(int(row[2]))
+                #print(f'added cut with length {int(row[2])}')
             if row[0]:
-                supplyLength = int(row[0])
+                sawBladeWidth = float(row[0])
+                print(f'saw blade width = {sawBladeWidth}mm')
+            if row[1]:
+                supplyLength = int(row[1])
                 print(f'supply length = {supplyLength}mm')
             #print(f'\t{row[0]} works in the {row[1]} department, and was born in.')
             line_count += 1
@@ -61,20 +69,23 @@ def findFit(currentCutIdx, avblLen, allCuts):
 setups = []
 
 class CutSetup:
-    def __init__(self, length, firstIndex, firstCutL):
+    def __init__(self, length, firstIndex, firstCutL, bladeWidth):
+        print(f'init {bladeWidth}')
         self.length = length
         self.indexes = []
         self.rest = length
+        self.bladeWidth = bladeWidth
         self.cut(firstIndex, firstCutL)
+        print(f'blade width {bladeWidth}')
     def fitsIn(self, cutL):
         return self.rest >= cutL
     def cut(self, index, cutL):
         self.indexes.append(index)
-        self.rest = self.rest - cutL
+        self.rest = self.rest - (cutL + self.bladeWidth)
         #print(f'Cut sucessful, setup now contains indexes {self.indexes} and has rest {self.rest}mm')
 
-def getSetup(cuts, supply):
-    cut = CutSetup(supply, cuts[0][1], cuts[0][0])
+def getSetup(cuts, supply, sawBladeWidth):
+    cut = CutSetup(supply, cuts[0][1], cuts[0][0], sawBladeWidth)
     full = False
     while not full:
         
@@ -91,7 +102,7 @@ def getSetup(cuts, supply):
     return cut
 
 while len(cutsNotSet) > 0:
-    s = getSetup(cutsNotSet, supplyLength)
+    s = getSetup(cutsNotSet, supplyLength, sawBladeWidth)
     #print(setups)
     toDel = []
     for idx in range(len(cutsNotSet)):
@@ -102,9 +113,17 @@ while len(cutsNotSet) > 0:
     cutsNotSet = np.delete(cutsNotSet, toDel, 0)
 print(f'successful cut all pieces. Total beams needed: {len(setups)}, all setups: ')
 for idx in range(len(setups)):
-    print(f'setup{idx+1} with rest {setups[idx].rest} and lengths: ')
+    print(f'setup{idx+1} with rest {setups[idx].rest:.1f} and lengths: ')
     for i in setups[idx].indexes:
         print(f'{npCuts[i][0]}mm of index {i}')
+
+with open('result.csv', mode='w', newline='') as result_file:
+    result_writer = csv.writer(result_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    
+    for idx in range(len(setups)):
+        result_writer.writerow([f'setup_{idx+1} with rest {setups[idx].rest:.1f} and lengths: ','length in mm','index'])
+        for i in setups[idx].indexes:
+            result_writer.writerow(['',f'{npCuts[i][0]}',f'{i}'])
 
 def findBestSetup(cuts):
     rest = supplyLength
